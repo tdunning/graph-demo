@@ -16,4 +16,5 @@ To run this demo use this command:
 
     mvn test
 
-You will need to have maven 2 or 3 installed and will need Java 1.6.
+You will need to have maven 2 or 3 installed and will need Java 1.6.  Also, you will need
+a patched Zookeeper that includes ZOOKEEPER-965.
