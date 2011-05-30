@@ -17,11 +17,9 @@
 
 package com.tdunning.graph;
 
-import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.WatchedEvent;
 import org.apache.zookeeper.Watcher;
-import org.apache.zookeeper.ZooDefs;
 import org.apache.zookeeper.ZooKeeper;
 import org.junit.Assert;
 import org.junit.Test;
@@ -30,6 +28,13 @@ import java.io.IOException;
 import java.util.Random;
 
 public class ZGraphTest {
+  private static final Watcher IGNORE_EVENTS = new Watcher() {
+    @Override
+    public void process(WatchedEvent event) {
+      // ignore
+    }
+  };
+
   private double[] expected = {0, 12.0 / 32, 15.0 / 32, 17.0 / 32, 20.0 / 32, 1};
 
   /**
@@ -53,23 +58,12 @@ public class ZGraphTest {
    */
   @Test
   public void hyperCubeResistance() throws IOException, InterruptedException, KeeperException {
-    ZooKeeper zk = new ZooKeeper("localhost", 3000, new Watcher() {
-      @Override
-      public void process(WatchedEvent event) {
-        // ignore
-      }
-    });
-
-    try {
-      zk.create("/graphx", new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
-    } catch (KeeperException.NodeExistsException e) {
-      // ignore
-    }
+    ZooKeeper zk = new ZooKeeper("localhost", 3000, IGNORE_EVENTS);
 
     // make the nodes
     ZGraph zg = new ZGraph(zk, "/graphx");
     for (int i = 0; i < 32; i++) {
-      zg.addNode(i, i + "");
+      zg.addNode(i);
     }
 
     // connect them up as a hypercube
@@ -89,13 +83,17 @@ public class ZGraphTest {
     node.setWeight(1);
     zg.update(node);
 
-    // and run the simulation
+    // and run the simulation.  This consists of leaving nodes
+    // 0 and 31 fixed and setting randomly chosen other nodes
+    // to the average of their incoming neighbors.  This progressive
+    // relaxation should converge to a solution.
     Random gen = new Random();
     for (int i = 0; i < 10000; i++) {
       // pick a random node from 1 to 30 inclusive
       int n = gen.nextInt(30) + 1;
       zg.reWeight(n);
       if (i % 1000 == 0) {
+        // every so often, print the errors versus expected values
         int testNode = 0;
         System.out.printf("%10d", i);
         for (double x : expected) {
@@ -106,6 +104,7 @@ public class ZGraphTest {
         System.out.printf("\n");
       }
     }
+
     int testNode = 0;
     for (double x : expected) {
       Assert.assertEquals(String.format("Node %d", testNode), x, zg.getNode(testNode).getWeight(), 1e-6);

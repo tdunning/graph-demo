@@ -17,8 +17,6 @@
 
 package com.tdunning.graph;
 
-import com.google.common.base.Charsets;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
@@ -38,7 +36,6 @@ import java.util.Set;
  * This class includes simplistic serialization to allow it to be put into a Zookeeper znode.
  */
 public class Node {
-  private String name;
   private int id;
   private Set<Integer> out = Sets.newHashSet();
   private Set<Integer> in = Sets.newHashSet();
@@ -47,18 +44,38 @@ public class Node {
 
   /**
    * Private constructor called from factory method readNode.
-   * @param name The name of the node.
    * @param id   The id.
    */
-  private Node(String name, int id) {
-    this.name = name;
+  private Node(int id) {
     this.id = id;
   }
 
-  public static void createNode(ZooKeeper zk, String root, int id, String name) throws InterruptedException, KeeperException {
-    zk.multi(Lists.<Op>newArrayList(new Node(name, id).createOp(root)));
+  /**
+   * Factory method that creates a new node and writes it to Zookeeper.
+   *
+   * @param zk     The Zookeeper connection to write to.
+   * @param root   The place where nodes are kept
+   * @param id     The id of the node, used to form a path for the data in Zookeeper
+   * @throws InterruptedException      If somebody is terminating this thread
+   * @throws KeeperException           If we get an error writing to Zookeeper.
+   * @return  The new node.
+   */
+  public static Node createNode(ZooKeeper zk, String root, int id) throws InterruptedException, KeeperException {
+    Node r = new Node(id);
+    zk.create(r.path(root), r.toBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL);
+    return r;
   }
 
+  /**
+   * Reads a node from Zookeeper given the id.
+   *
+   * @param zk     The Zookeeper connection to write to.
+   * @param root   The place where nodes are kept
+   * @param id     The id of the node, used to form a path for the data in Zookeeper
+   * @return       The node read from Zookeeeper
+   * @throws InterruptedException      If somebody is terminating this thread
+   * @throws KeeperException           If we get an error writing to Zookeeper.
+   */
   public static Node readNode(ZooKeeper zk, String root, int id) throws InterruptedException, KeeperException {
     Stat s = new Stat();
     Node r = Node.fromBytes(zk.getData(root + "/" + id, false, s));
@@ -67,7 +84,7 @@ public class Node {
   }
 
   /**
-   * Set up a connection to another node.
+   * Set up a connection to another node.  Don't write back to ZK yet.
    *
    * @param other The node to connect to.
    */
@@ -76,7 +93,7 @@ public class Node {
   }
 
   /**
-   * Set up a connection from another node.
+   * Set up a connection from another node.  Don't write back to ZK yet.
    *
    * @param other The node to connect from.
    */
@@ -84,16 +101,23 @@ public class Node {
     in.add(other);
   }
 
+  /**
+   * Creates an update operation that can be put into a transaction with other operations.
+   * @param root  The root directory used to store the graph.
+   * @return The Op that will update ZK with this nodes data.
+   */
   public Op updateOp(String root) {
     return Op.setData(path(root), toBytes(), version);
   }
 
+  /**
+   * Creates an check operation that can be put into a transaction with other operations.
+   * This check will verify that this node has not been changed in ZK since it was read.
+   * @param root  The root directory used to store the graph.
+   * @return The Op that will check the vesion of this node in ZK.
+   */
   public Op checkOp(String root) {
-    return Op.setData(path(root), toBytes(), version);
-  }
-
-  public Op createOp(String root) {
-    return Op.create(path(root), toBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.EPHEMERAL);
+    return Op.check(path(root), version);
   }
 
 
@@ -124,10 +148,7 @@ public class Node {
    * @return A newly created byte buffer containing the serialized form of the node.
    */
   private ByteBuffer toByteBuffer() {
-    byte[] nameBytes = name.getBytes(Charsets.UTF_8);
-    ByteBuffer r = ByteBuffer.allocate(4 + nameBytes.length + 4 + 8 + 4 + 4 * out.size() + 4 + 4 * in.size());
-    r.putInt(nameBytes.length);
-    r.put(nameBytes);
+    ByteBuffer r = ByteBuffer.allocate(4 + 8 + 4 + 4 * out.size() + 4 + 4 * in.size());
     r.putInt(id);
     r.putDouble(weight);
     r.putInt(out.size());
@@ -153,16 +174,13 @@ public class Node {
    */
   private static Node fromBytes(byte[] b) {
     ByteBuffer buf = ByteBuffer.wrap(b);
-    int len = buf.getInt();
-    byte[] nameBytes = new byte[len];
-    buf.get(nameBytes);
     int id = buf.getInt();
 
-    Node r = new Node(new String(nameBytes, Charsets.UTF_8), id);
+    Node r = new Node(id);
 
     r.setWeight(buf.getDouble());
 
-    len = buf.getInt();
+    int len = buf.getInt();
     for (int i = 0; i < len; i++) {
       r.out.add(buf.getInt());
     }

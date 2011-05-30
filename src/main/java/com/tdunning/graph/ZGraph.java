@@ -19,9 +19,11 @@ package com.tdunning.graph;
 
 
 import com.google.common.collect.Lists;
+import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.Op;
 import org.apache.zookeeper.OpResult;
+import org.apache.zookeeper.ZooDefs;
 import org.apache.zookeeper.ZooKeeper;
 
 import java.util.Arrays;
@@ -35,13 +37,18 @@ public class ZGraph {
   private ZooKeeper zk;
   private String root;
 
-  public ZGraph(ZooKeeper zk, String root) {
+  public ZGraph(ZooKeeper zk, String root) throws InterruptedException, KeeperException {
     this.zk = zk;
     this.root = root;
+    try {
+      zk.create(root, new byte[0], ZooDefs.Ids.OPEN_ACL_UNSAFE, CreateMode.PERSISTENT);
+    } catch (KeeperException.NodeExistsException e) {
+      // ignore
+    }
   }
 
-  public void addNode(int id, String name) throws InterruptedException, KeeperException {
-    Node.createNode(zk, root, id, name);
+  public void addNode(int id) throws InterruptedException, KeeperException {
+    Node.createNode(zk, root, id);
   }
 
   /**
@@ -67,7 +74,7 @@ public class ZGraph {
         // update both nodes simultaneously
         g1.connectTo(id2);
         g2.connectFrom(id1);
-        zk.multi(Arrays.asList(g1.checkOp(root), g2.checkOp(root)), results);
+        zk.multi(Arrays.asList(g1.updateOp(root), g2.updateOp(root)), results);
         return;
       } catch (KeeperException.BadVersionException e) {
         System.out.printf("%s\n", Arrays.deepToString(results.toArray()));
