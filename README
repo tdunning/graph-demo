@@ -1,0 +1,19 @@
+This program demonstrates several aspects of the new multi operation in Zookeeper.
+
+First, it shows how updates to multiple files can be coordinated to maintain referential
+integrity between the files.  The mechanism used to demonstrate this is a graph on which
+a randomized averaging operation is done.
+
+Secondly, it shows how the operations exposed by the multi interface can be used to hide
+information more effectively by letting data structures return database operations rather
+than exposing serialization primitives.  The caller to gets these operations returned to
+it can arrange the operations into transactions as desired while the data structure that
+creates the operation is able to handle serialization and version control.
+
+If you have any questions, please send me email at tdunning@apache.org
+
+To run this demo use this command:
+
+    mvn test
+
+You will need to have maven 2 or 3 installed and will need Java 1.6.
