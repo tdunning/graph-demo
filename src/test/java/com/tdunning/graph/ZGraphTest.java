@@ -29,7 +29,6 @@ import java.util.Random;
 
 public class ZGraphTest {
   private static final Watcher IGNORE_EVENTS = new Watcher() {
-    @Override
     public void process(WatchedEvent event) {
       // ignore
     }
