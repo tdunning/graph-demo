@@ -1,4 +1,6 @@
-This program demonstrates several aspects of the new multi operation in Zookeeper.
+This program demonstrates several aspects of the new multi operation in Zookeeper. Please 
+note that this program is not maintained and depends on an ancient version of Zookeeper.
+The underlying multi operation has not changed, however.
 
 First, it shows how updates to multiple files can be coordinated to maintain referential
 integrity between the files.  The mechanism used to demonstrate this is a graph on which
